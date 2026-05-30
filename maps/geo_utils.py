@@ -41,6 +41,7 @@ def generate_spatial_mock_data(n_points=200):
     # Dengue Risk: Correlated somewhat with flood/water
     dengue_risk = flood_risk * 0.7 + np.random.uniform(0.0, 0.4, n_points)
     dengue_risk = np.clip(dengue_risk, 0.0, 1.0)
+    uhi_score = np.clip(((temperatures - 22) / 18) + ((aqis - 50) / 500), 0.0, 1.0)
     
     df = pd.DataFrame({
         'latitude': lats,
@@ -48,7 +49,8 @@ def generate_spatial_mock_data(n_points=200):
         'temperature': temperatures,
         'aqi': aqis,
         'flood_risk': flood_risk,
-        'dengue_risk': dengue_risk
+        'dengue_risk': dengue_risk,
+        'uhi_score': uhi_score
     })
     
     geometry = [Point(xy) for xy in zip(df.longitude, df.latitude)]

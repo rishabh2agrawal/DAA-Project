@@ -1,0 +1,248 @@
+{
+  "next_day_temperature_regressor": {
+    "mae": 0.643,
+    "rmse": 0.841,
+    "r2": 0.909
+  },
+  "next_day_aqi_regressor": {
+    "mae": 12.35,
+    "rmse": 15.85,
+    "r2": 0.343
+  },
+  "next_day_rainfall_classifier": {
+    "accuracy": 0.638,
+    "classification_report": {
+      "No Rain": {
+        "precision": 0.847457627118644,
+        "recall": 0.7518796992481203,
+        "f1-score": 0.796812749003984,
+        "support": 266.0
+      },
+      "Light": {
+        "precision": 0.5219512195121951,
+        "recall": 0.5691489361702128,
+        "f1-score": 0.5445292620865141,
+        "support": 188.0
+      },
+      "Moderate": {
+        "precision": 0.43373493975903615,
+        "recall": 0.47368421052631576,
+        "f1-score": 0.45283018867924524,
+        "support": 76.0
+      },
+      "Heavy": {
+        "precision": 0.16666666666666666,
+        "recall": 0.2727272727272727,
+        "f1-score": 0.20689655172413793,
+        "support": 11.0
+      },
+      "Extreme": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1-score": 0.0,
+        "support": 1.0
+      },
+      "accuracy": 0.6383763837638377,
+      "macro avg": {
+        "precision": 0.39396209061130844,
+        "recall": 0.4134880237343843,
+        "f1-score": 0.40021375029877626,
+        "support": 542.0
+      },
+      "weighted avg": {
+        "precision": 0.6611582044960739,
+        "recall": 0.6383763837638377,
+        "f1-score": 0.6476285035348941,
+        "support": 542.0
+      }
+    }
+  },
+  "heatwave_risk_classifier": {
+    "accuracy": 0.95,
+    "classification_report": {
+      "Low": {
+        "precision": 0.9960238568588469,
+        "recall": 0.9524714828897338,
+        "f1-score": 0.9737609329446064,
+        "support": 526.0
+      },
+      "Moderate": {
+        "precision": 0.358974358974359,
+        "recall": 0.875,
+        "f1-score": 0.509090909090909,
+        "support": 16.0
+      },
+      "High": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1-score": 0.0,
+        "support": 0.0
+      },
+      "Severe": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1-score": 0.0,
+        "support": 0.0
+      },
+      "micro avg": {
+        "precision": 0.9501845018450185,
+        "recall": 0.9501845018450185,
+        "f1-score": 0.9501845018450185,
+        "support": 542.0
+      },
+      "macro avg": {
+        "precision": 0.3387495539583015,
+        "recall": 0.45686787072243346,
+        "f1-score": 0.37071296050887886,
+        "support": 542.0
+      },
+      "weighted avg": {
+        "precision": 0.9772179676224043,
+        "recall": 0.9501845018450185,
+        "f1-score": 0.9600437366684824,
+        "support": 542.0
+      }
+    }
+  },
+  "flood_risk_classifier": {
+    "accuracy": 0.941,
+    "classification_report": {
+      "Low": {
+        "precision": 0.9788053949903661,
+        "recall": 0.9603024574669187,
+        "f1-score": 0.9694656488549619,
+        "support": 529.0
+      },
+      "Moderate": {
+        "precision": 0.08695652173913043,
+        "recall": 0.15384615384615385,
+        "f1-score": 0.1111111111111111,
+        "support": 13.0
+      },
+      "High": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1-score": 0.0,
+        "support": 0.0
+      },
+      "Severe": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1-score": 0.0,
+        "support": 0.0
+      },
+      "micro avg": {
+        "precision": 0.940959409594096,
+        "recall": 0.940959409594096,
+        "f1-score": 0.940959409594096,
+        "support": 542.0
+      },
+      "macro avg": {
+        "precision": 0.2664404791823741,
+        "recall": 0.27853715282826813,
+        "f1-score": 0.27014418999151824,
+        "support": 542.0
+      },
+      "weighted avg": {
+        "precision": 0.9574141858533439,
+        "recall": 0.940959409594096,
+        "f1-score": 0.9488778093887811,
+        "support": 542.0
+      }
+    }
+  },
+  "dengue_risk_classifier": {
+    "accuracy": 0.889,
+    "classification_report": {
+      "Low": {
+        "precision": 0.9032258064516129,
+        "recall": 0.9333333333333333,
+        "f1-score": 0.9180327868852459,
+        "support": 210.0
+      },
+      "Moderate": {
+        "precision": 0.8356164383561644,
+        "recall": 0.7770700636942676,
+        "f1-score": 0.8052805280528053,
+        "support": 157.0
+      },
+      "High": {
+        "precision": 0.9162011173184358,
+        "recall": 0.9371428571428572,
+        "f1-score": 0.9265536723163842,
+        "support": 175.0
+      },
+      "Severe": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1-score": 0.0,
+        "support": 0.0
+      },
+      "micro avg": {
+        "precision": 0.8892988929889298,
+        "recall": 0.8892988929889298,
+        "f1-score": 0.8892988929889298,
+        "support": 542.0
+      },
+      "macro avg": {
+        "precision": 0.6637608405315533,
+        "recall": 0.6618865635426145,
+        "f1-score": 0.6624667468136088,
+        "support": 542.0
+      },
+      "weighted avg": {
+        "precision": 0.8878309883901896,
+        "recall": 0.8892988929889298,
+        "f1-score": 0.8881232856191131,
+        "support": 542.0
+      }
+    }
+  },
+  "human_risk_classifier": {
+    "accuracy": 0.705,
+    "classification_report": {
+      "Low": {
+        "precision": 0.7142857142857143,
+        "recall": 0.7807308970099668,
+        "f1-score": 0.746031746031746,
+        "support": 301.0
+      },
+      "Moderate": {
+        "precision": 0.6901408450704225,
+        "recall": 0.6099585062240664,
+        "f1-score": 0.6475770925110133,
+        "support": 241.0
+      },
+      "High": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1-score": 0.0,
+        "support": 0.0
+      },
+      "Severe": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1-score": 0.0,
+        "support": 0.0
+      },
+      "micro avg": {
+        "precision": 0.7047970479704797,
+        "recall": 0.7047970479704797,
+        "f1-score": 0.7047970479704797,
+        "support": 542.0
+      },
+      "macro avg": {
+        "precision": 0.35110663983903423,
+        "recall": 0.34767235080850833,
+        "f1-score": 0.3484022096356898,
+        "support": 542.0
+      },
+      "weighted avg": {
+        "precision": 0.7035497115534536,
+        "recall": 0.7047970479704797,
+        "f1-score": 0.7022539388389479,
+        "support": 542.0
+      }
+    }
+  }
+}

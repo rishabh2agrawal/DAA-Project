@@ -107,3 +107,21 @@ def generate_dengue_heatmap(gdf: gpd.GeoDataFrame):
     ).add_to(m)
     
     return m
+
+def generate_uhi_heatmap(gdf: gpd.GeoDataFrame):
+    """
+    Generates a proxy Urban Heat Island heatmap.
+    High values indicate built-up, hot, low-cooling simulated zones.
+    """
+    m = get_base_map()
+    heat_data = [[row.latitude, row.longitude, row.uhi_score] for index, row in gdf.iterrows()]
+    gradient = {0.2: '#2ca25f', 0.5: '#ffeda0', 0.8: '#f03b20', 1.0: '#bd0026'}
+    HeatMap(
+        heat_data,
+        gradient=gradient,
+        min_opacity=0.3,
+        max_val=1.0,
+        radius=28,
+        blur=18
+    ).add_to(m)
+    return m
