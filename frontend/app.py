@@ -1,9 +1,34 @@
 import streamlit as st
 import requests
-import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 import os
+import sys
+sys.path.append(os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
+
+from streamlit_folium import st_folium
+try:
+    from maps.geo_utils import generate_spatial_mock_data
+    from maps.heatmap_generator import (
+        generate_temperature_heatmap,
+        generate_aqi_heatmap,
+        generate_flood_heatmap,
+        generate_dengue_heatmap
+    )
+except ImportError as e:
+    st.error(f"Cannot load mapping modules: {e}")
+
+try:
+    from analytics.climate_change_analysis import (
+        get_historical_climate_data,
+        plot_temperature_trend,
+        plot_rainfall_trend,
+        plot_aqi_trend,
+        plot_land_use_changes,
+        generate_insights
+    )
+except ImportError as e:
+    st.error(f"Cannot load analytics modules: {e}")
 
 st.set_page_config(
         page_title="ClimateIQ Bengaluru",
@@ -213,8 +238,12 @@ backend_url = "http://localhost:8000"
 def load_data():
     data_path = os.path.join('data', 'processed', 'processed_weather_data.csv')
     if os.path.exists(data_path):
-        df = pd.read_csv(data_path)
+        df = pd.read_csv(data_path).replace(-999, pd.NA)
         df['date'] = pd.to_datetime(df['date'])
+        numeric_cols = df.columns.difference(['date', 'season', 'temp_class', 'rain_class', 'human_risk'])
+        df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
+        if 'temperature' not in df.columns and 'temperature_avg' in df.columns:
+            df['temperature'] = df['temperature_avg']
         return df
     return None
 
@@ -238,24 +267,20 @@ def calculate_seasonal_stats(df):
     df_copy = df.copy()
     df_copy['season'] = df_copy['date'].dt.month.map({
         12: 'Winter', 1: 'Winter', 2: 'Winter',
-        3: 'Spring', 4: 'Spring', 5: 'Spring',
-        6: 'Summer', 7: 'Summer', 8: 'Summer',
-        9: 'Fall', 10: 'Fall', 11: 'Fall'
+        3: 'Summer', 4: 'Summer', 5: 'Summer',
+        6: 'Monsoon', 7: 'Monsoon', 8: 'Monsoon', 9: 'Monsoon',
+        10: 'Post-Monsoon', 11: 'Post-Monsoon'
     })
     
     seasonal_data = df_copy.groupby('season').agg({
-        'temperature': ['mean', 'std'],
-        'humidity': 'mean',
+        'temperature': 'mean',
+        'aqi': 'mean',
         'rainfall': 'mean'
     }).round(2)
     
-    # Flatten column names for better readability
-    seasonal_data.columns = ['Avg Temp (°C)', 'Std Dev Temp', 'Avg Humidity (%)', 'Avg Rainfall (in)']
-    
-    # Reorder seasons properly
-    season_order = ['Winter', 'Spring', 'Summer', 'Fall']
+    seasonal_data.columns = ['Avg Temp (°C)', 'Avg AQI', 'Avg Rainfall (in)']
+    season_order = ['Winter', 'Summer', 'Monsoon', 'Post-Monsoon']
     seasonal_data = seasonal_data.reindex(season_order)
-    
     return seasonal_data
 
 @st.cache_data(ttl=60)
@@ -309,69 +334,106 @@ else:
     )
 
 st.sidebar.markdown("---")
-page = st.sidebar.radio("", ["📊 Dashboard", "🤖 AI Prediction", "⚠️ Health Risk", "📈 Analytics"], index=0)
+page = st.sidebar.radio(
+    "View",
+    ["🌍 Climate Risk Dashboard", "🗓️ Seasonal Analytics", "📈 Climate Trend", "🔮 Future Forecast", "🗺️ Spatial Heatmaps", "🌱 Env Change Analysis"],
+    index=0,
+    label_visibility="collapsed",
+)
 
-if page == "📊 Dashboard":
-    st.markdown('<div class="section-title">Climate Dashboard</div>', unsafe_allow_html=True)
+if page == "🌍 Climate Risk Dashboard":
+    st.markdown('<div class="section-title">Current Conditions & Risk Indicators</div>', unsafe_allow_html=True)
     
-    if df is not None:
-        avg_temp = df['temperature'].mean()
-        avg_humidity = df['humidity'].mean()
-        total_rain = df['rainfall'].sum()
-        avg_aqi = df['aqi'].mean()
+    if df is not None and weather is not None:
+        curr_temp = weather.get('temperature', 0)
+        curr_humidity = weather.get('humidity', 0)
+        curr_rain = weather.get('rainfall', 0)
+        curr_aqi = weather.get('aqi', 0)
 
+        # Section A: Current Conditions
+        st.markdown('<div class="section-title">A. Current Conditions</div>', unsafe_allow_html=True)
         col1, col2, col3, col4 = st.columns(4)
-
         with col1:
-            st.markdown(
-                f"""
-<div class="metric-card">
-  <div class="metric-label">🌡️ Avg Temp</div>
-  <div class="metric-value">{avg_temp:.1f}°C</div>
-  <div class="metric-sub">Range: {df['temperature'].min():.1f}° - {df['temperature'].max():.1f}°</div>
-</div>
-""",
-                unsafe_allow_html=True,
-            )
-
+            st.markdown(f'<div class="metric-card"><div class="metric-label">🌡️ Temperature</div><div class="metric-value">{curr_temp:.1f}°C</div></div>', unsafe_allow_html=True)
         with col2:
-            st.markdown(
-                f"""
-<div class="metric-card">
-  <div class="metric-label">💧 Humidity</div>
-  <div class="metric-value">{avg_humidity:.1f}%</div>
-  <div class="metric-sub">Range: {df['humidity'].min():.1f}% - {df['humidity'].max():.1f}%</div>
-</div>
-""",
-                unsafe_allow_html=True,
-            )
-
+            st.markdown(f'<div class="metric-card"><div class="metric-label">🌫️ AQI</div><div class="metric-value">{curr_aqi:.0f}</div></div>', unsafe_allow_html=True)
         with col3:
-            st.markdown(
-                f"""
-<div class="metric-card">
-  <div class="metric-label">🌧️ Rainfall</div>
-  <div class="metric-value">{total_rain:.2f} in</div>
-  <div class="metric-sub">Max: {df['rainfall'].max():.2f} in</div>
-</div>
-""",
-                unsafe_allow_html=True,
-            )
-
+            st.markdown(f'<div class="metric-card"><div class="metric-label">💧 Humidity</div><div class="metric-value">{curr_humidity:.1f}%</div></div>', unsafe_allow_html=True)
         with col4:
-            st.markdown(
-                f"""
-<div class="metric-card">
-  <div class="metric-label">🌫️ AQI</div>
-  <div class="metric-value">{avg_aqi:.0f}</div>
-  <div class="metric-sub">Range: {df['aqi'].min():.0f} - {df['aqi'].max():.0f}</div>
-</div>
-""",
-                unsafe_allow_html=True,
-            )
+            st.markdown(f'<div class="metric-card"><div class="metric-label">🌧️ Rainfall</div><div class="metric-value">{curr_rain:.2f} in</div></div>', unsafe_allow_html=True)
         
         st.divider()
 
+        # Fetch live risks based on current weather
+        try:
+            hw_res = requests.post(f"{backend_url}/predict_heatwave", json={"temperature": curr_temp, "humidity": curr_humidity, "aqi": curr_aqi, "rainfall": curr_rain}, timeout=5).json().get('risk', 'Low')
+            fl_res = requests.post(f"{backend_url}/predict_flood", json={"temperature": curr_temp, "humidity": curr_humidity, "aqi": curr_aqi, "rainfall": curr_rain}, timeout=5).json().get('risk', 'Low')
+            dg_res = requests.post(f"{backend_url}/predict_dengue", json={"temperature": curr_temp, "humidity": curr_humidity, "aqi": curr_aqi, "rainfall": curr_rain}, timeout=5).json().get('risk', 'Low')
+            pl_res = "Severe" if curr_aqi > 200 else "High" if curr_aqi > 150 else "Moderate" if curr_aqi > 100 else "Low"
+        except:
+            hw_res = fl_res = dg_res = pl_res = "Unknown"
+
+        # Section B: Risk Indicators
+        st.markdown('<div class="section-title">B. Risk Indicators</div>', unsafe_allow_html=True)
+        r1, r2, r3, r4 = st.columns(4)
+        
+        def risk_color(risk):
+            if risk in ['Low', 'Normal']: return 'rgba(57,255,20,0.1)'
+            elif risk in ['Medium', 'Moderate']: return 'rgba(255,184,48,0.2)'
+            else: return 'rgba(255,77,77,0.3)'
+
+        with r1: st.markdown(f'<div class="result-card" style="background: {risk_color(hw_res)}; height: 100%;">🔥 Heatwave Risk<br><b>{hw_res}</b></div>', unsafe_allow_html=True)
+        with r2: st.markdown(f'<div class="result-card" style="background: {risk_color(fl_res)}; height: 100%;">🌊 Flood Risk<br><b>{fl_res}</b></div>', unsafe_allow_html=True)
+        with r3: st.markdown(f'<div class="result-card" style="background: {risk_color(dg_res)}; height: 100%;">🦟 Dengue Risk<br><b>{dg_res}</b></div>', unsafe_allow_html=True)
+        with r4: st.markdown(f'<div class="result-card" style="background: {risk_color(pl_res)}; height: 100%;">🌫️ Pollution Risk<br><b>{pl_res}</b></div>', unsafe_allow_html=True)
+
+    else:
+        st.error("Data unavailable to generate climate risk dashboard.")
+
+elif page == "🗓️ Seasonal Analytics":
+    st.markdown('<div class="section-title">C. Seasonal Analysis</div>', unsafe_allow_html=True)
+    if df is not None:
+        seasonal_data = calculate_seasonal_stats(df)
+        cols = st.columns(4)
+        
+        for i, season in enumerate(['Winter', 'Summer', 'Monsoon', 'Post-Monsoon']):
+            if season in seasonal_data.index:
+                row = seasonal_data.loc[season]
+                avg_t = row['Avg Temp (°C)']
+                avg_a = row['Avg AQI']
+                avg_r = row['Avg Rainfall (in)']
+                
+                # Heuristic risk summary for season overview
+                summary = []
+                if avg_t > 30: summary.append("Heat")
+                if avg_a > 120: summary.append("Pollution")
+                if avg_r > 50: summary.append("Flood")
+                risk_str = ", ".join(summary) if summary else "Stable"
+
+                with cols[i]:
+                    st.markdown(f"""
+                    <div class="glass-card" style="margin-bottom: 1rem; text-align: center;">
+                        <h3 style="color: var(--cyan); margin-top: 0;">{season}</h3>
+                        <div style="font-size: 0.9rem; color: var(--muted); margin: 4px 0;">🌡️ {avg_t:.1f}°C</div>
+                        <div style="font-size: 0.9rem; color: var(--muted); margin: 4px 0;">🌫️ AQI {avg_a:.0f}</div>
+                        <div style="font-size: 0.9rem; color: var(--muted); margin: 4px 0;">🌧️ {avg_r:.1f} in</div>
+                        <div style="margin-top: 10px; font-weight: bold; font-size: 0.9rem; color: var(--amber);">⚠️ Risks: {risk_str}</div>
+                    </div>""", unsafe_allow_html=True)
+        
+        st.divider()
+        st.markdown('<div class="section-title">🌡️ Seasonal Radar</div>', unsafe_allow_html=True)
+        seasons = seasonal_data.index.tolist()
+        fig_radar = go.Figure()
+        fig_radar.add_trace(go.Scatterpolar(r=seasonal_data['Avg Temp (°C)'], theta=seasons, fill='toself', name='Temp (°C)', line_color='#00D4FF'))
+        fig_radar.add_trace(go.Scatterpolar(r=seasonal_data['Avg AQI']/5, theta=seasons, fill='toself', name='AQI (scaled)', line_color='#FFB830'))
+        fig_radar.add_trace(go.Scatterpolar(r=seasonal_data['Avg Rainfall (in)'], theta=seasons, fill='toself', name='Rainfall (in)', line_color='#39FF14'))
+        fig_radar.update_layout(height=420, polar=dict(bgcolor='rgba(0,0,0,0)', radialaxis=dict(gridcolor='rgba(255,255,255,0.08)', tickfont_color='#A8B2C1')), paper_bgcolor='rgba(0,0,0,0)', font=dict(color='#E6E8EF'))
+        st.plotly_chart(fig_radar, use_container_width=True, config={"displayModeBar": False})
+        
+elif page == "📈 Climate Trend":
+    st.markdown('<div class="section-title">Data Trends & Analytics</div>', unsafe_allow_html=True)
+    
+    if df is not None:
         col1, col2 = st.columns(2)
 
         with col1:
@@ -422,296 +484,136 @@ if page == "📊 Dashboard":
             )
             st.plotly_chart(fig_humidity, use_container_width=True, config={"displayModeBar": False})
 
-        st.markdown('<div class="section-title">🔗 Feature Correlations</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">🔗 Feature Correlations (Temp, Rain, Hum, AQI)</div>', unsafe_allow_html=True)
         corr_matrix = df[['temperature', 'rainfall', 'humidity', 'aqi']].corr()
         fig_corr = go.Figure(
             data=go.Heatmap(
                 z=corr_matrix.values,
                 x=corr_matrix.columns,
                 y=corr_matrix.columns,
-                colorscale=[
-                    [0.0, '#00D4FF'],
-                    [0.5, '#1E2A3A'],
-                    [1.0, '#FFB830'],
-                ],
+                colorscale=[[0.0, '#00D4FF'], [0.5, '#1E2A3A'], [1.0, '#FFB830']],
                 text=corr_matrix.values.round(2),
                 texttemplate='%{text}',
                 textfont={"size": 12, "color": "#E6E8EF"},
             )
         )
         fig_corr.update_layout(
-            height=380,
-            margin=dict(l=10, r=10, t=20, b=10),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font=dict(color='#E6E8EF'),
+            height=380, margin=dict(l=10, r=10, t=20, b=10), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#E6E8EF'),
         )
         st.plotly_chart(fig_corr, use_container_width=True, config={"displayModeBar": False})
 
-elif page == "🤖 AI Prediction":
-    st.markdown('<div class="section-title">AI Temperature Prediction</div>', unsafe_allow_html=True)
+elif page == "🔮 Future Forecast":
+    st.markdown('<div class="section-title">D. Future Forecast Simulator</div>', unsafe_allow_html=True)
+    st.markdown('<div class="metric-sub" style="margin-bottom: 1rem;">Simulate environmental variables to generate multi-dimensional climate forecasts and risk alerts.</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="control-panel">', unsafe_allow_html=True)
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        rainfall = st.slider("Rainfall (inches)", 0.0, 5.0, 0.5, step=0.1)
-
-    with col2:
-        humidity = st.slider("Humidity (%)", 0, 100, 60)
-
-    with col3:
-        aqi = st.slider("AQI (Air Quality Index)", 0, 500, 50)
+    c1, c2, c3, c4 = st.columns(4)
+    with c1: f_temp = st.slider("Temperature (°C)", 10.0, 50.0, 25.0)
+    with c2: f_hum = st.slider("Humidity (%)", 0, 100, 60)
+    with c3: f_rain = st.slider("Rainfall (in)", 0.0, 15.0, 1.0)
+    with c4: f_aqi = st.slider("Current AQI", 0, 500, 50)
+    
+    c5, c6, c7, c8 = st.columns(4)
+    with c5: f_wind = st.slider("Wind (km/h)", 0.0, 50.0, 10.0)
+    with c6: f_hist = st.slider("Hist. Rain (in)", 0.0, 50.0, 5.0)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    if st.button("🔮 Predict Temperature", use_container_width=True):
-        try:
-            response = requests.post(
-                f"{backend_url}/predict",
-                json={"rainfall": rainfall, "humidity": humidity, "aqi": aqi},
-                timeout=5,
-            )
-            if response.status_code == 200:
-                pred = response.json()
-                predicted_temp = pred['predicted_temperature']
-                historical_avg = df['temperature'].mean() if df is not None else predicted_temp
+    if st.button("🔮 Generate Complete Forecast", use_container_width=True):
+        with st.spinner("Processing massive-scale climate models..."):
+            try:
+                req_data = {
+                    "temperature": f_temp, "humidity": f_hum, "rainfall": f_rain, 
+                    "aqi": f_aqi, "wind_speed": f_wind, "historical_rainfall": f_hist
+                }
+                
+                p_temp = requests.post(f"{backend_url}/predict", json=req_data, timeout=5).json().get('predicted_temperature', 0)
+                p_aqi = requests.post(f"{backend_url}/predict_aqi", json=req_data, timeout=5).json().get('predicted_aqi', 0)
+                p_rain = requests.post(f"{backend_url}/predict_rainfall", json=req_data, timeout=5).json().get('category', 'Unknown')
+                
+                r_hw = requests.post(f"{backend_url}/predict_heatwave", json=req_data, timeout=5).json().get('risk', 'Low')
+                r_fl = requests.post(f"{backend_url}/predict_flood", json=req_data, timeout=5).json().get('risk', 'Low')
+                r_dg = requests.post(f"{backend_url}/predict_dengue", json=req_data, timeout=5).json().get('risk', 'Low')
 
-                st.markdown(
-                    f"""
-<div class="result-card">
-  <div class="metric-label">🌡️ Predicted Temperature</div>
-  <div class="metric-value" style="color: var(--cyan);">{predicted_temp:.1f}°C</div>
-  <div class="metric-sub">vs historical average {historical_avg:.1f}°C</div>
-</div>
-""",
-                    unsafe_allow_html=True,
-                )
+                st.markdown('<div class="section-title" style="margin-top: 2rem;">Forecast Outcomes</div>', unsafe_allow_html=True)
+                o1, o2, o3 = st.columns(3)
+                with o1: st.markdown(f'<div class="metric-card"><div class="metric-label">🌡️ Expected Temp</div><div class="metric-value" style="color:var(--cyan)">{p_temp:.1f}°C</div></div>', unsafe_allow_html=True)
+                with o2: st.markdown(f'<div class="metric-card"><div class="metric-label">🌫️ Expected AQI</div><div class="metric-value" style="color:var(--amber)">{p_aqi:.0f}</div></div>', unsafe_allow_html=True)
+                with o3: st.markdown(f'<div class="metric-card"><div class="metric-label">🌧️ Rainfall Category</div><div class="metric-value" style="color:var(--green)">{p_rain}</div></div>', unsafe_allow_html=True)
 
-                gauge_min = 10
-                gauge_max = 45
-                fig_gauge = go.Figure(
-                    go.Indicator(
-                        mode="gauge+number",
-                        value=predicted_temp,
-                        number={"suffix": "°C", "font": {"color": "#E6E8EF"}},
-                        gauge={
-                            "axis": {"range": [gauge_min, gauge_max], "tickcolor": "#A8B2C1"},
-                            "bar": {"color": "#00D4FF"},
-                            "bgcolor": "rgba(0,0,0,0)",
-                            "steps": [
-                                {"range": [gauge_min, 25], "color": "rgba(0,212,255,0.12)"},
-                                {"range": [25, 35], "color": "rgba(57,255,20,0.12)"},
-                                {"range": [35, gauge_max], "color": "rgba(255,184,48,0.18)"},
-                            ],
-                        },
-                    )
-                )
-                fig_gauge.update_layout(
-                    height=300,
-                    margin=dict(l=10, r=10, t=10, b=10),
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color='#E6E8EF'),
-                )
-                st.plotly_chart(fig_gauge, use_container_width=True, config={"displayModeBar": False})
+                st.markdown('<div class="section-title">Predicted Risk Levels</div>', unsafe_allow_html=True)
+                r1, r2, r3 = st.columns(3)
+                def rc(risk): return 'rgba(57,255,20,0.1)' if risk in ['Low'] else 'rgba(255,184,48,0.2)' if risk in ['Medium', 'Moderate'] else 'rgba(255,77,77,0.3)'
+                
+                with r1: st.markdown(f'<div class="result-card" style="background: {rc(r_hw)}">🔥 Heatwave: <b>{r_hw}</b></div>', unsafe_allow_html=True)
+                with r2: st.markdown(f'<div class="result-card" style="background: {rc(r_fl)}">🌊 Flood: <b>{r_fl}</b></div>', unsafe_allow_html=True)
+                with r3: st.markdown(f'<div class="result-card" style="background: {rc(r_dg)}">🦟 Dengue: <b>{r_dg}</b></div>', unsafe_allow_html=True)
 
-                fig_compare = go.Figure()
-                fig_compare.add_trace(
-                    go.Bar(
-                        x=['Predicted'],
-                        y=[predicted_temp],
-                        marker_color='#00D4FF',
-                        name='Predicted',
-                    )
-                )
-                fig_compare.add_hline(
-                    y=historical_avg,
-                    line_dash="dash",
-                    line_color="#FFB830",
-                    annotation_text="Historical Avg",
-                    annotation_font_color="#FFB830",
-                )
-                fig_compare.update_layout(
-                    height=280,
-                    margin=dict(l=10, r=10, t=20, b=10),
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.08)', title='Temperature (°C)'),
-                    font=dict(color='#E6E8EF'),
-                    showlegend=False,
-                )
-                st.plotly_chart(fig_compare, use_container_width=True, config={"displayModeBar": False})
+            except Exception as e:
+                st.error(f"Error communicating with AI models: {e}")
 
-                with st.expander("Input Parameters"):
-                    st.write(f"- **Rainfall**: {rainfall} inches")
-                    st.write(f"- **Humidity**: {humidity}%")
-                    st.write(f"- **AQI**: {aqi}")
+elif page == "🗺️ Spatial Heatmaps":
+    st.markdown('<div class="section-title">E. Geospatial Climate Visualization</div>', unsafe_allow_html=True)
+    st.markdown('<div class="metric-sub" style="margin-bottom: 1rem;">Explore simulated risk and feature heatmaps across the Bengaluru region overlayed on live maps.</div>', unsafe_allow_html=True)
+
+    try:
+        if 'geo_df' not in st.session_state:
+            st.session_state.geo_df = generate_spatial_mock_data(n_points=300)
+    except NameError:
+        st.warning("Mapping modules not available. Make sure geopandas and folium are installed.")
+    else:
+        map_type = st.radio(
+            "Select Heatmap Layer:",
+            ["🌡️ Temperature", "🌫️ AQI", "🌊 Flood Risk", "🦟 Dengue Risk"],
+            horizontal=True
+        )
+
+        st.markdown('<div class="glass-card" style="padding: 10px; margin-top: 10px;">', unsafe_allow_html=True)
+        
+        with st.spinner("Generating Map Layer..."):
+            if map_type == "🌡️ Temperature":
+                m = generate_temperature_heatmap(st.session_state.geo_df)
+                st.caption("Temperature Gradient: Green (Cooler) ➔ Yellow (Warm) ➔ Red (Hot / Heat island)")
+            elif map_type == "🌫️ AQI":
+                m = generate_aqi_heatmap(st.session_state.geo_df)
+                st.caption("AQI Gradient: Green (Good) ➔ Yellow (Moderate) ➔ Red/Purple (Unhealthy/Severe)")
+            elif map_type == "🌊 Flood Risk":
+                m = generate_flood_heatmap(st.session_state.geo_df)
+                st.caption("Flood Risk Gradient: Light Blue (Safe) ➔ Dark Blue (High PRone Area)")
             else:
-                st.error(f"Error: {response.status_code}")
-        except Exception as e:
-            st.error(f"Connection error: {e}")
+                m = generate_dengue_heatmap(st.session_state.geo_df)
+                st.caption("Dengue Risk Gradient: Yellow (Low) ➔ Orange (Medium) ➔ Red (High Mosquito Zone)")
 
-elif page == "⚠️ Health Risk":
-    st.markdown('<div class="section-title">Health Risk Assessment</div>', unsafe_allow_html=True)
+            st_data = st_folium(m, width=1000, height=500)
+            
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="control-panel">', unsafe_allow_html=True)
-    col1, col2, col3 = st.columns(3)
+elif page == "🌱 Env Change Analysis":
+    st.markdown('<div class="section-title">Environmental Change Analysis (2005-2026)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="metric-sub" style="margin-bottom: 1rem;">Analyzing decades of climate variations and urban transformation in Bengaluru highlighting the impact of rapid development.</div>', unsafe_allow_html=True)
 
-    with col1:
-        temp_risk = st.slider("Temperature (°C)", 15.0, 40.0, 24.0)
+    try:
+        hist_df = get_historical_climate_data()
+        insights = generate_insights(hist_df)
+        
+        st.markdown('<div class="glass-card" style="padding: 20px; margin-bottom: 25px;">', unsafe_allow_html=True)
+        st.markdown('#### 💡 Key Automated Insights')
+        for insight in insights:
+            st.markdown(f"- {insight}")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    with col2:
-        humidity_risk = st.slider("Humidity (%)", 0, 100, 60)
-
-    with col3:
-        aqi_risk = st.slider("AQI", 0, 500, 50)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    if st.button("📋 Check Health Risk", use_container_width=True):
-        try:
-            response = requests.post(
-                f"{backend_url}/health_risk",
-                json={"temperature": temp_risk, "humidity": humidity_risk, "aqi": aqi_risk},
-                timeout=5,
-            )
-            if response.status_code == 200:
-                risk = response.json()
-                risk_level = risk.get('risk', 'Moderate')
-
-                if 'Low' in risk_level:
-                    risk_class = "risk-low"
-                    risk_icon = "✅"
-                elif 'Moderate' in risk_level:
-                    risk_class = "risk-moderate"
-                    risk_icon = "⚠️"
-                else:
-                    risk_class = "risk-high"
-                    risk_icon = "🚨"
-
-                st.markdown(
-                    f"""
-<div class="risk-card {risk_class}">
-  {risk_icon} Health Risk: {risk_level}
-</div>
-""",
-                    unsafe_allow_html=True,
-                )
-
-                risk_factors = []
-                if temp_risk > 32:
-                    risk_factors.append("🌡️ High temperature")
-                if humidity_risk > 80:
-                    risk_factors.append("💧 High humidity")
-                if aqi_risk > 150:
-                    risk_factors.append("💨 Poor air quality")
-
-                st.markdown('<div class="section-title">Risk Factors</div>', unsafe_allow_html=True)
-                if risk_factors:
-                    chips = "".join([f"<span class=\"chip\">{item}</span>" for item in risk_factors])
-                    st.markdown(chips, unsafe_allow_html=True)
-                else:
-                    st.markdown('<div class="glass-card">No significant risk factors detected.</div>', unsafe_allow_html=True)
-            else:
-                st.error(f"Error: {response.status_code}")
-        except Exception as e:
-            st.error(f"Connection error: {e}")
-
-elif page == "📈 Analytics":
-    st.markdown('<div class="section-title">Data Analytics</div>', unsafe_allow_html=True)
-
-    if df is not None:
-        st.markdown('<div class="section-title">📊 Monthly Climate Statistics</div>', unsafe_allow_html=True)
-
-        monthly_stats = calculate_monthly_stats(df)
-        fig_monthly = go.Figure()
-        fig_monthly.add_trace(
-            go.Bar(
-                x=monthly_stats['Month'],
-                y=monthly_stats['Avg Temp'],
-                name='Avg Temp (°C)',
-                marker_color='#00D4FF',
-            )
-        )
-        fig_monthly.add_trace(
-            go.Bar(
-                x=monthly_stats['Month'],
-                y=monthly_stats['Avg Humidity'],
-                name='Avg Humidity (%)',
-                marker_color='#39FF14',
-            )
-        )
-        fig_monthly.add_trace(
-            go.Bar(
-                x=monthly_stats['Month'],
-                y=monthly_stats['Total Rain'],
-                name='Total Rain (in)',
-                marker_color='#FFB830',
-            )
-        )
-        fig_monthly.update_layout(
-            barmode='group',
-            height=420,
-            margin=dict(l=10, r=10, t=20, b=20),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            xaxis=dict(showgrid=False),
-            yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.08)'),
-            font=dict(color='#E6E8EF'),
-            legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
-        )
-        st.plotly_chart(fig_monthly, use_container_width=True, config={"displayModeBar": False})
-
-        st.divider()
-
-        st.markdown('<div class="section-title">🌡️ Seasonal Patterns</div>', unsafe_allow_html=True)
-        seasonal_data = calculate_seasonal_stats(df)
-
-        seasons = seasonal_data.index.tolist()
-        fig_radar = go.Figure()
-        fig_radar.add_trace(
-            go.Scatterpolar(
-                r=seasonal_data['Avg Temp (°C)'],
-                theta=seasons,
-                fill='toself',
-                name='Avg Temp (°C)',
-                line_color='#00D4FF',
-            )
-        )
-        fig_radar.add_trace(
-            go.Scatterpolar(
-                r=seasonal_data['Avg Humidity (%)'],
-                theta=seasons,
-                fill='toself',
-                name='Avg Humidity (%)',
-                line_color='#39FF14',
-            )
-        )
-        fig_radar.add_trace(
-            go.Scatterpolar(
-                r=seasonal_data['Avg Rainfall (in)'],
-                theta=seasons,
-                fill='toself',
-                name='Avg Rainfall (in)',
-                line_color='#FFB830',
-            )
-        )
-        fig_radar.update_layout(
-            height=420,
-            polar=dict(bgcolor='rgba(0,0,0,0)', radialaxis=dict(gridcolor='rgba(255,255,255,0.08)', tickfont_color='#A8B2C1')),
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(color='#E6E8EF'),
-            legend=dict(orientation='h', yanchor='bottom', y=1.05, xanchor='right', x=1),
-        )
-        st.plotly_chart(fig_radar, use_container_width=True, config={"displayModeBar": False})
-
-        st.markdown('<div class="section-title">📌 Key Insights</div>', unsafe_allow_html=True)
-        warmest = seasonal_data['Avg Temp (°C)'].idxmax()
-        coldest = seasonal_data['Avg Temp (°C)'].idxmin()
-        wettest = seasonal_data['Avg Rainfall (in)'].idxmax()
-        st.markdown(
-            f"""
-<div class="callout">🔥 Warmest: {warmest} ({seasonal_data.loc[warmest, 'Avg Temp (°C)']:.1f}°C)</div>
-<div class="callout">❄️ Coldest: {coldest} ({seasonal_data.loc[coldest, 'Avg Temp (°C)']:.1f}°C)</div>
-<div class="callout">💧 Wettest: {wettest} ({seasonal_data.loc[wettest, 'Avg Rainfall (in)']:.3f} in)</div>
-""",
-            unsafe_allow_html=True,
-        )
+        st.markdown('<div class="section-title">Decadal Trend Charts</div>', unsafe_allow_html=True)
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            st.plotly_chart(plot_temperature_trend(hist_df), use_container_width=True, config={"displayModeBar": False})
+        with c2:
+            st.plotly_chart(plot_aqi_trend(hist_df), use_container_width=True, config={"displayModeBar": False})
+            
+        c3, c4 = st.columns(2)
+        with c3:
+            st.plotly_chart(plot_rainfall_trend(hist_df), use_container_width=True, config={"displayModeBar": False})
+        with c4:
+            st.plotly_chart(plot_land_use_changes(hist_df), use_container_width=True, config={"displayModeBar": False})
+            
+    except NameError:
+        st.error("Historical analytics libraries could not be loaded.")
